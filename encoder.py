@@ -1,11 +1,7 @@
 import whisper
 from torch import nn
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel
 import torch
-
-
-import torch
-
 
 class PrefixEncoder(nn.Module):
     r'''
