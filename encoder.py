@@ -70,7 +70,7 @@ class TextEncoder(nn.Module):
             past_key_values = self.get_prompt(inputs.shape[0])
         else:
             past_key_values = None
-        text_tokens = self.text_encoder(inputs,past_key_values=past_key_values)
+        text_tokens = self.text_encoder(**inputs,past_key_values=past_key_values)
         text_tokens = self.connector(text_tokens)
         return text_tokens
         
