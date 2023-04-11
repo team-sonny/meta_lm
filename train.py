@@ -6,7 +6,7 @@ import argparse
 from torch.utils.data import DataLoader
 from torch import nn
 from config import Config
-import tqdm
+from tqdm import tqdm
 from sklearn.metrics import f1_score
 import torch
 
@@ -18,7 +18,7 @@ def loss_func(pred, real):
     loss = criterion(pred,real)
     return loss
 
-def train_step(model, inputs, labels, optimizer):
+def train_step(model, inputs, labels, optimizer:torch.optim.Optimizer):
     optimizer.zero_grad()
     pred, hidden_states = model(inputs)
     loss = loss_func(pred, labels)
@@ -56,7 +56,7 @@ def metric(pred,real):
     }
     return f1
 
-def train(model:nn.Module, dataloader: DataLoader, val_dataloader: DataLoader, wandb: wandb=wandb, whole_step=10000, eval_per_steps=100):
+def train(model:nn.Module, optimizer:torch.optim.Optimizer, dataloader: DataLoader, val_dataloader: DataLoader, wandb: wandb=wandb, whole_step=10000, eval_per_steps=100):
     
     model.train()
     t = tqdm(dataloader)
@@ -66,8 +66,9 @@ def train(model:nn.Module, dataloader: DataLoader, val_dataloader: DataLoader, w
             step += 1
             loss, pred = train_step(
                     model=model,
+                    optimizer=optimizer,
                     inputs=data,
-                    labels=data['labels']
+                    labels=data['labels'],
                 )
             pred = torch.argmax(pred,dim=-1)
             f1 = metric(pred,data['labels'])
@@ -91,10 +92,11 @@ if __name__=="__main__":
     parser.add_argument('--num_hidden_layers', type=int, default=12, help='you can use csv filepath.')
     parser.add_argument('--num_attention_heads', type=int, default=12, help='std output & model save dir')
     parser.add_argument('--prompt', type=str, default=True, help='GPT-P-tunning.')
+    parser.add_argument('--dropout', type=int, default=0.3, help='dropout.')
+    parser.add_argument('--is_wav', type=bool, default=True, help='Boolean. if is True...')
 
-    parser.add_argument('-v','--validation_data', type=str, default="KEMDy20_val_data.csv", help='Optional')
-    parser.add_argument('-v','--test_data', type=str, default="KEMDy20_test_data.csv", help='Optional')
-    parser.add_argument('--val_dir', type=str, default=None, help='Optional')
+    parser.add_argument('-v','--val_dir', type=str, default="KEMDy20_val_data.csv", help='Optional')
+    parser.add_argument('-t','--test_data', type=str, default="KEMDy20_test_data.csv", help='Optional')
     parser.add_argument('-b','--batch_size', type=int, default=16, help='default16')
     parser.add_argument('-s','--val_batch_size', type=int, default=8, help='default8')
     parser.add_argument('-n','--modelname', type=str, default='PowerfulMyModel', help='Enter model name')
@@ -118,12 +120,13 @@ if __name__=="__main__":
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
     model = MetaLM(config)
+    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.00001)
     tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
 
-    training_data = CustomDataset(config.input_dir)
-    test_data = CustomDataset(config.val_dir)
+    training_data = CustomDataset(config.input_dir,config.is_wav)
+    test_data = CustomDataset(config.val_dir,config.is_wav)
 
     train_dataloader = DataLoader(training_data, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn)
     test_dataloader = DataLoader(test_data, batch_size=config.val_batch_size, shuffle=True, collate_fn=collate_fn)
 
-    train(model=model,dataloader=train_dataloader,wandb=wandb)
+    train(model=model,optimizer=optimizer,dataloader=train_dataloader,val_dataloader=test_dataloader, wandb=wandb)

@@ -3,7 +3,7 @@ from torch import nn
 from transformers import AutoTokenizer, AutoModel, GPT2LMHeadModel
 import torch
 from encoder import TextEncoder, WavEncoder, PrefixEncoder
-
+from config import Config
 import torch
 
 # 프롬프트 구조
@@ -13,14 +13,16 @@ prompt = ["다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분
 
 class MetaLM(nn.Module):
     def __init__(self, config):
-        super().__init__(config)
-        self.text_encoder = TextEncoder(config.text_encoder)
-        self.wav_encoder = WavEncoder(config.wav_encoder)
+        super().__init__()
+        self.text_encoder = TextEncoder(Config.from_dict(eval(config.text_encoder)))
+        self.wav_encoder = WavEncoder(Config.from_dict(eval(config.wav_encoder)))
         # GPI is Semi-Causal LM
         self.GPI = GPT2LMHeadModel.from_pretrained('skt/kogpt2-base-v2',output_hidden_states=True)
         self.prompt = config.prompt
         self.classifier = nn.Linear(768,7)
-        
+        self.dropout = nn.Dropout2d(config.dropout)
+        self.GPI.transformer.wte = torch.nn.Identity()
+        self.GPI.transformer.wpe = torch.nn.Identity()
         for param in self.GPI.parameters():
             param.requires_grad = False
             
@@ -33,7 +35,7 @@ class MetaLM(nn.Module):
             self.prefix_tokens=torch.arange(self.pre_seq_len).long()
         
     def get_prompt(self, batch_size):
-        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.roberta.device)
+        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         past_key_values = self.prefix_encoder(prefix_tokens)
         past_key_values = past_key_values.view(
             batch_size,
@@ -55,11 +57,13 @@ class MetaLM(nn.Module):
         Returns:
             _type_: _description_
         """
-        past_key_values = self.get_prompt(inputs['text_tokens']['input_ids'].shape[0])
+        batch_size = inputs['text_tokens']['input_ids'].shape[0]
+        past_key_values = self.get_prompt(batch_size)
         text_tokens, wav_tokens = inputs['text_tokens'], inputs['wav_tokens']
-        self.text_encoder(text_tokens)
-        self.wav_encoder(wav_tokens)
-        inputs = torch.concat([text_tokens,wav_tokens])
+        text_tokens = self.text_encoder(text_tokens)
+        wav_tokens = self.wav_encoder(wav_tokens)
+        inputs = torch.concat([text_tokens,wav_tokens],dim=1)
+        inputs = inputs.reshape(batch_size,-1,self.n_head,self.n_embd).permute([0,2,1,3])
         outputs = self.GPI(inputs,past_key_values=past_key_values)
         pred = self.classifier(outputs[2][11][-1])
         return pred, outputs
