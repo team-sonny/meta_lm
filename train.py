@@ -28,12 +28,27 @@ def train_step(model, inputs, labels, optimizer):
 
 def eval_step(model, inputs, labels):
     pred, hidden_states = model(inputs)
-    f1 = metric(pred,labels)
-    return f1
+    loss = loss_func(pred,labels)
+    return loss, pred
+
+def evaluate(model:nn.Module, dataloader: DataLoader, wandb:wandb=wandb):
+    model.eval()
+    t = tqdm(dataloader)
+    _pred = torch.tensor([])
+    _real = torch.tensor([])
+    
+    for data in t:
+        loss, pred = eval_step(model,data,data['labels'])
+        pred = torch.argmax(pred,dim=-1)
+        _pred = torch.concat([_pred,pred])
+        _real = torch.concat([_real,data['labels']])
+        wandb.log({"val_loss":loss})
+    score = metric(_pred,_real)
+    model.train()
+    return score
+        
 
 def metric(pred,real):
-    pred = torch.argmax(pred,dim=-1)
-
     f1 = {
         'macro_f1':f1_score(real, pred, average='macro'),
         'micro_f1':f1_score(real, pred, average='micro'),
@@ -41,25 +56,26 @@ def metric(pred,real):
     }
     return f1
 
-def train(model:nn.Module, dataloader: DataLoader,wandb: wandb=wandb, whole_step=10000, eval_per_steps=100):
+def train(model:nn.Module, dataloader: DataLoader, val_dataloader: DataLoader, wandb: wandb=wandb, whole_step=10000, eval_per_steps=100):
     
     model.train()
     t = tqdm(dataloader)
     step = 0
     while True:
-        step += 1
         for idx, data in enumerate(t):
+            step += 1
             loss, pred = train_step(
                     model=model,
                     inputs=data,
                     labels=data['labels']
                 )
+            pred = torch.argmax(pred,dim=-1)
             f1 = metric(pred,data['labels'])
             if wandb:
                 wandb.log({"loss": loss})
             if step%eval_per_steps==0:
-                score = eval_step(model=model,inputs=data,labels=data['labels'])
-                wandb.log(score)
+                score = evaluate(model=model, dataloader=val_dataloader, wandb=wandb)
+                wandb.log({"val_"+i:j for i,j in score})
         if step==whole_step:
             return None
         
