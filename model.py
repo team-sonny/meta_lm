@@ -55,8 +55,10 @@ class MetaLM(nn.Module):
         Returns:
             _type_: _description_
         """
-        past_key_values = self.get_prompt(inputs.shape[0])
+        past_key_values = self.get_prompt(inputs['text_tokens']['input_ids'].shape[0])
         text_tokens, wav_tokens = inputs['text_tokens'], inputs['wav_tokens']
+        self.text_encoder(text_tokens)
+        self.wav_encoder(wav_tokens)
         inputs = torch.concat([text_tokens,wav_tokens])
         outputs = self.GPI(inputs,past_key_values=past_key_values)
         pred = self.classifier(outputs[2][11][-1])
