@@ -1,0 +1,9 @@
+{
+"prefix_projection":false,
+"pre_seq_len":5,
+"hidden_size":512,
+"prefix_hidden_size":512,
+"num_hidden_layers":6,
+"num_attention_heads":8,
+"prompt":false
+}
