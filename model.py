@@ -1,6 +1,6 @@
 import whisper
 from torch import nn
-from transformers import AutoTokenizer, AutoModel, GPT2LMHeadModel
+from CustomModel import GPT2LMHeadModel
 import torch
 from encoder import TextEncoder, WavEncoder, PrefixEncoder
 from config import Config
@@ -63,7 +63,7 @@ class MetaLM(nn.Module):
         text_tokens = self.text_encoder(text_tokens)
         wav_tokens = self.wav_encoder(wav_tokens)
         inputs = torch.concat([text_tokens,wav_tokens],dim=1)
-        inputs = inputs.reshape(batch_size,-1,self.n_head,self.n_embd).permute([0,2,1,3])
+        # inputs = inputs.view(batch_size,-1,self.n_head,self.n_embd).permute([0,2,1,3])
         outputs = self.GPI(inputs,past_key_values=past_key_values)
         pred = self.classifier(outputs[2][11][-1])
         return pred, outputs
