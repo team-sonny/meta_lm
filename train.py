@@ -34,12 +34,18 @@ def train_step(model, inputs, labels, optimizer:torch.optim.Optimizer):
     outputs = model(inputs)
     # loss = loss_func(pred, labels)
     loss = outputs.loss
+    xm.mark_step()
+    
     loss.backward()
+    xm.mark_step()
+    
     xm.optimizer_step(optimizer=optimizer)
     return outputs
 
 def eval_step(model, inputs):
     outputs = model(inputs)
+    xm.mark_step()
+    
     # loss = loss_func(pred,labels)
     return outputs
 
@@ -75,7 +81,8 @@ def train(index,args):
         project=config.project,
         entity="smart-sprout",
         name=config.modelname,
-        group='tpu-server'
+        group='tpu-server',
+        config=config
         
     )
     device = xm.xla_device()
@@ -90,7 +97,7 @@ def train(index,args):
     dataloader = torch.utils.data.DataLoader(
                 dataset = args['datasets'],
                 sampler = sampler,
-                batch_size = 128,
+                batch_size = config.batch_size,
                 drop_last = True,
                 collate_fn=collate_fn
                 )
@@ -103,7 +110,7 @@ def train(index,args):
     val_dataloader = torch.utils.data.DataLoader(
                 dataset = args['val_datasets'],
                 sampler = val_sampler,
-                batch_size = 128,
+                batch_size = config.val_batch_size,
                 drop_last = True,
                 collate_fn=collate_fn
                 )
@@ -119,8 +126,6 @@ def train(index,args):
     while True:
         for idx, data in enumerate(t):
             data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
-            print(data)
-            print(len(data))
             data['labels'] = data['labels'].float()
             data = {i:j.to(device=device) for i, j in data.items()}
             step += 1
@@ -158,8 +163,8 @@ if __name__=="__main__":
 
     parser.add_argument('-v','--val_dir', type=str, default="~/datadisk/KEMDy20_val_data.csv", help='Optional')
     parser.add_argument('-t','--test_data', type=str, default="~/datadisk/KEMDy20_test_data.csv", help='Optional')
-    parser.add_argument('-b','--batch_size', type=int, default=8, help='default16')
-    parser.add_argument('-s','--val_batch_size', type=int, default=8, help='default8')
+    parser.add_argument('-b','--batch_size', type=int, default=2, help='default16')
+    parser.add_argument('-s','--val_batch_size', type=int, default=2, help='default8')
     parser.add_argument('-n','--modelname', type=str, default='PowerfulMyModel', help='Enter model name')
     parser.add_argument('-p','--project', type=str, default='meta-p-tunning', help='Enter project name')
 
@@ -173,13 +178,13 @@ if __name__=="__main__":
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
     model = MetaLM(config)
-    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.00001)
+    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.000001)
 
     datasets = CustomDataset(config.input_dir,config.is_wav)
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
 
     FLAGS = {}
-    FLAGS.update(model=model,optimizer=optimizer,datasets=datasets,val_datasets=val_datasets, config=config, whole_step=10000, eval_per_steps=100)
+    FLAGS.update(model=model,optimizer=optimizer,datasets=datasets,val_datasets=val_datasets, config=config, whole_step=10000, eval_per_steps=10000)
     
     xmp.spawn(train, args =(FLAGS, ), nprocs=8, start_method='fork')
     wandb.finish()
