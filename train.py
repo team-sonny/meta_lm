@@ -3,20 +3,23 @@ from transformers import AutoTokenizer
 from utils.Customdataset import CustomDataset, collate_fn
 import wandb
 import argparse
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch import nn
 from config import Config
 from tqdm import tqdm
 from sklearn.metrics import f1_score
 import torch
 import torch_xla.core.xla_model as xm
+import torch_xla.distributed.xla_multiprocessing as xmp
+import torch_xla.distributed.parallel_loader as pl
+
 import os
 
 
 
 os.environ['XRT_TPU_CONFIG'] = "localservice;0;localhost:51011"
 
-dev = xm.xla_device()
+
 
 
 # model()
@@ -65,19 +68,63 @@ def metric(pred,real):
     }
     return f1
 
-def train(model:nn.Module, optimizer:torch.optim.Optimizer, dataloader: DataLoader, val_dataloader: DataLoader, wandb: wandb=wandb, whole_step=10000, eval_per_steps=100):
-    
+def train(index,args):
+    config = args['config']
+    wandb.init(
+        project=config.project,
+        entity="smart-sprout",
+        name=config.modelname,
+        group='tpu-server'
+        
+    )
+    device = xm.xla_device()
+    model.to(device)
     model.train()
+    sampler = torch.utils.data.distributed.DistributedSampler(
+                args['datasets'],
+                num_replicas = xm.xrt_world_size(),
+                rank = xm.get_ordinal(),
+                shuffle = True
+                )
+    dataloader = torch.utils.data.DataLoader(
+                dataset = args['datasets'],
+                sampler = sampler,
+                batch_size = 128,
+                drop_last = True,
+                collate_fn=collate_fn
+                )
+    val_sampler = torch.utils.data.distributed.DistributedSampler(
+                args['val_datasets'],
+                num_replicas = xm.xrt_world_size(),
+                rank = xm.get_ordinal(),
+                shuffle = True
+                )
+    val_dataloader = torch.utils.data.DataLoader(
+                dataset = args['val_datasets'],
+                sampler = val_sampler,
+                batch_size = 128,
+                drop_last = True,
+                collate_fn=collate_fn
+                )
+    dataloader = pl.ParallelLoader(
+                dataloader, [device]
+                ).per_device_loader(device)
+
+    val_dataloader =  pl.ParallelLoader(
+                val_dataloader, [device]
+                ).per_device_loader(device)
     t = tqdm(dataloader)
     step = 0
     while True:
         for idx, data in enumerate(t):
+            print(data)
+            print(len(data))
             data['labels'] = data['labels'].float()
-            data = {i:j.to(device=dev) for i, j in data.items()}
+            data = {i:j.to(device=device) for i, j in data.items()}
             step += 1
             outputs = train_step(
                     model=model,
-                    optimizer=optimizer,
+                    optimizer=args['optimizer'],
                     inputs=data,
                     labels=data['labels'],
                 )
@@ -85,10 +132,10 @@ def train(model:nn.Module, optimizer:torch.optim.Optimizer, dataloader: DataLoad
             # f1 = metric(pred.cpu(),data['labels'].cpu()) 데이터가 적어서 스코어 의미가 적다.
             if wandb:
                 wandb.log({"loss": outputs.loss})
-            if step%eval_per_steps==0:
+            if step%args['eval_per_steps']==0:
                 score = evaluate(model=model, dataloader=val_dataloader, wandb=wandb)
                 wandb.log({"val_"+i:j for i,j in score})
-        if step==whole_step:
+        if step==args['whole_step']:
             return None
         
         
@@ -114,31 +161,24 @@ if __name__=="__main__":
     parser.add_argument('-n','--modelname', type=str, default='PowerfulMyModel', help='Enter model name')
     parser.add_argument('-p','--project', type=str, default='meta-p-tunning', help='Enter project name')
 
-    args = parser.parse_args()
+    config = parser.parse_args()
 
 
+    # config = wandb.config
 
-    wandb.init(
-        project=args.project,
-        entity="smart-sprout",
-        name=args.modelname
-        
-    )
-
-    config = wandb.config
-
-    config.update(args)
+    # config.update(args)
     config.wav_encoder = Config.from_json("wav_encoder_config.json")
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
-    model = MetaLM(config).to(device=dev)
+    model = MetaLM(config)
     optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.00001)
     tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
 
-    training_data = CustomDataset(config.input_dir,config.is_wav)
-    test_data = CustomDataset(config.val_dir,config.is_wav)
+    datasets = CustomDataset(config.input_dir,config.is_wav)
+    val_datasets = CustomDataset(config.val_dir,config.is_wav)
 
-    train_dataloader = DataLoader(training_data, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn)
-    test_dataloader = DataLoader(test_data, batch_size=config.val_batch_size, shuffle=True, collate_fn=collate_fn)
-
-    train(model=model,optimizer=optimizer,dataloader=train_dataloader,val_dataloader=test_dataloader, wandb=wandb)
+    FLAGS = {}
+    FLAGS.update(model=model,optimizer=optimizer,datasets=datasets,val_datasets=val_datasets, config=config, whole_step=10000, eval_per_steps=100)
+    
+    xmp.spawn(train, args =(FLAGS, ), nprocs=8, start_method='fork')
+    wandb.finish()
