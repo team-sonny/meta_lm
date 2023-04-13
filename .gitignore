@@ -2,3 +2,4 @@ wandb/
 __pycache__/
 utils
 KEMDy20
+.ipynb_checkpoints/
