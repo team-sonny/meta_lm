@@ -18,7 +18,7 @@ import os
 
 
 os.environ['XRT_TPU_CONFIG'] = "localservice;0;localhost:51011"
-
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 
@@ -69,6 +69,7 @@ def metric(pred,real):
     return f1
 
 def train(index,args):
+    tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
     config = args['config']
     wandb.init(
         project=config.project,
@@ -117,6 +118,7 @@ def train(index,args):
     step = 0
     while True:
         for idx, data in enumerate(t):
+            data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
             print(data)
             print(len(data))
             data['labels'] = data['labels'].float()
@@ -172,7 +174,6 @@ if __name__=="__main__":
 
     model = MetaLM(config)
     optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.00001)
-    tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
 
     datasets = CustomDataset(config.input_dir,config.is_wav)
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
