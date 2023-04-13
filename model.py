@@ -14,8 +14,8 @@ prompt = ["다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분
 class MetaLM(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.text_encoder = TextEncoder(Config.from_dict(eval(config.text_encoder)))
-        self.wav_encoder = WavEncoder(Config.from_dict(eval(config.wav_encoder)))
+        self.text_encoder = TextEncoder(config.text_encoder)
+        self.wav_encoder = WavEncoder(config.wav_encoder)
         # GPI is Semi-Causal LM
         self.GPI = GPT2ForTokenClassification.from_pretrained('skt/kogpt2-base-v2',output_hidden_states=True,num_labels=config.num_labels)
         self.prompt = config.prompt
