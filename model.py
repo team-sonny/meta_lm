@@ -5,6 +5,7 @@ import torch
 from encoder import TextEncoder, WavEncoder, PrefixEncoder
 from config import Config
 import torch
+import torch_xla.core.xla_model as xm
 
 # 프롬프트 구조
 # P-tunning + prompt, few shot in-context learning 으로 하면 좋을 것 같으니 비교 실험 필요.
@@ -63,6 +64,8 @@ class MetaLM(nn.Module):
         wav_tokens = self.wav_encoder(wav_tokens)
         # fitting seq_len for GPT with prefix
         inputs = torch.concat([text_tokens,wav_tokens],dim=1)[:,:1019,:]
+        xm.mark_step()
+        
         # inputs = inputs.view(batch_size,-1,self.n_head,self.n_embd).permute([0,2,1,3])
         outputs = self.GPI(inputs_embeds=inputs,past_key_values=past_key_values,labels=labels)
         # pred = self.classifier(outputs.hidden_states[:,-1])
