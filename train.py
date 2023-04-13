@@ -9,6 +9,14 @@ from config import Config
 from tqdm import tqdm
 from sklearn.metrics import f1_score
 import torch
+import torch_xla.core.xla_model as xm
+import os
+
+
+
+os.environ['XRT_TPU_CONFIG'] = "localservice;0;localhost:51011"
+
+dev = xm.xla_device()
 
 
 # model()
@@ -20,16 +28,17 @@ def loss_func(pred, real):
 
 def train_step(model, inputs, labels, optimizer:torch.optim.Optimizer):
     optimizer.zero_grad()
-    pred, hidden_states = model(inputs)
-    loss = loss_func(pred, labels)
+    outputs = model(inputs)
+    # loss = loss_func(pred, labels)
+    loss = outputs.loss
     loss.backward()
-    optimizer.step()
-    return loss, pred
+    xm.optimizer_step(optimizer=optimizer)
+    return outputs
 
-def eval_step(model, inputs, labels):
-    pred, hidden_states = model(inputs)
-    loss = loss_func(pred,labels)
-    return loss, pred
+def eval_step(model, inputs):
+    outputs = model(inputs)
+    # loss = loss_func(pred,labels)
+    return outputs
 
 def evaluate(model:nn.Module, dataloader: DataLoader, wandb:wandb=wandb):
     model.eval()
@@ -38,12 +47,12 @@ def evaluate(model:nn.Module, dataloader: DataLoader, wandb:wandb=wandb):
     _real = torch.tensor([])
     
     for data in t:
-        loss, pred = eval_step(model,data,data['labels'])
-        pred = torch.argmax(pred,dim=-1)
+        outputs = eval_step(model,data)
+        pred = torch.argmax(outputs.logits[:,-1],dim=-1)
         _pred = torch.concat([_pred,pred])
         _real = torch.concat([_real,data['labels']])
-        wandb.log({"val_loss":loss})
-    score = metric(_pred,_real)
+        wandb.log({"val_loss":outputs.loss.detach().cpu()})
+    score = metric(_pred.detach().cpu(),_real.detach().cpu())
     model.train()
     return score
         
@@ -63,17 +72,19 @@ def train(model:nn.Module, optimizer:torch.optim.Optimizer, dataloader: DataLoad
     step = 0
     while True:
         for idx, data in enumerate(t):
+            data['labels'] = data['labels'].float()
+            data = {i:j.to(device=dev) for i, j in data.items()}
             step += 1
-            loss, pred = train_step(
+            outputs = train_step(
                     model=model,
                     optimizer=optimizer,
                     inputs=data,
                     labels=data['labels'],
                 )
-            pred = torch.argmax(pred,dim=-1)
-            f1 = metric(pred,data['labels'])
+            pred = torch.argmax(outputs.logits[:,-1],dim=-1)
+            # f1 = metric(pred.cpu(),data['labels'].cpu()) 데이터가 적어서 스코어 의미가 적다.
             if wandb:
-                wandb.log({"loss": loss})
+                wandb.log({"loss": outputs.loss})
             if step%eval_per_steps==0:
                 score = evaluate(model=model, dataloader=val_dataloader, wandb=wandb)
                 wandb.log({"val_"+i:j for i,j in score})
@@ -83,7 +94,7 @@ def train(model:nn.Module, optimizer:torch.optim.Optimizer, dataloader: DataLoad
         
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='hyper&input')
-    parser.add_argument('-i','--input_dir', type=str, default='KEMDy20_train_data.csv', help='you can use csv file. without file extention')
+    parser.add_argument('-i','--input_dir', type=str, default='~/datadisk/KEMDy20_train_data.csv', help='you can use csv file. without file extention')
 
     parser.add_argument('--prefix_projection', type=str, default=False, help='you can use csv filepath.')
     parser.add_argument('--pre_seq_len', type=int, default=5, help='you can use csv filepath.')
@@ -94,10 +105,11 @@ if __name__=="__main__":
     parser.add_argument('--prompt', type=str, default=True, help='GPT-P-tunning.')
     parser.add_argument('--dropout', type=int, default=0.3, help='dropout.')
     parser.add_argument('--is_wav', type=bool, default=True, help='Boolean. if is True...')
+    parser.add_argument('--num_labels', type=int, default=7, help='label nums')
 
-    parser.add_argument('-v','--val_dir', type=str, default="KEMDy20_val_data.csv", help='Optional')
-    parser.add_argument('-t','--test_data', type=str, default="KEMDy20_test_data.csv", help='Optional')
-    parser.add_argument('-b','--batch_size', type=int, default=16, help='default16')
+    parser.add_argument('-v','--val_dir', type=str, default="~/datadisk/KEMDy20_val_data.csv", help='Optional')
+    parser.add_argument('-t','--test_data', type=str, default="~/datadisk/KEMDy20_test_data.csv", help='Optional')
+    parser.add_argument('-b','--batch_size', type=int, default=8, help='default16')
     parser.add_argument('-s','--val_batch_size', type=int, default=8, help='default8')
     parser.add_argument('-n','--modelname', type=str, default='PowerfulMyModel', help='Enter model name')
     parser.add_argument('-p','--project', type=str, default='meta-p-tunning', help='Enter project name')
@@ -119,7 +131,7 @@ if __name__=="__main__":
     config.wav_encoder = Config.from_json("wav_encoder_config.json")
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
-    model = MetaLM(config)
+    model = MetaLM(config).to(device=dev)
     optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.00001)
     tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
 

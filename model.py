@@ -65,7 +65,6 @@ class MetaLM(nn.Module):
         inputs = torch.concat([text_tokens,wav_tokens],dim=1)[:,:1019,:]
         # inputs = inputs.view(batch_size,-1,self.n_head,self.n_embd).permute([0,2,1,3])
         outputs = self.GPI(inputs_embeds=inputs,past_key_values=past_key_values,labels=labels)
-        print(outputs.loss)
         # pred = self.classifier(outputs.hidden_states[:,-1])
         return outputs
         
