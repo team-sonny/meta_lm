@@ -24,7 +24,9 @@ class MetaLM(nn.Module):
         self.dropout = nn.Dropout2d(config.dropout)
         for param in self.GPI.parameters():
             param.requires_grad = False
-        # TODO: fix classifier requires_grad -> True
+        for param in self.GPI.classifier.parameters():
+            param.requires_grad = True
+        
             
         if self.prompt:
             self.prefix_encoder=PrefixEncoder(config)
