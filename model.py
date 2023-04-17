@@ -24,6 +24,7 @@ class MetaLM(nn.Module):
         self.dropout = nn.Dropout2d(config.dropout)
         for param in self.GPI.parameters():
             param.requires_grad = False
+        # TODO: fix classifier requires_grad -> True
             
         if self.prompt:
             self.prefix_encoder=PrefixEncoder(config)
@@ -56,6 +57,12 @@ class MetaLM(nn.Module):
         Returns:
             _type_: _description_
         """
+        # TODO: 
+        # 1. [CLS] 마지막에 붙이기 
+        # 2. prompt 붙이기, 다른 인코더의 아웃풋과 concat하는 코드 필요(model 내부).
+        # 3. text encoder 제거
+        # 4. 음성데이터 길이 줄이는 법 추가
+        
         batch_size = inputs['text_tokens']['input_ids'].shape[0]
         past_key_values = self.get_prompt(batch_size)
         labels=inputs['labels']
