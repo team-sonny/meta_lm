@@ -88,42 +88,42 @@ def train(index,args):
     device = xm.xla_device()
     model.to(device)
     model.train()
-    sampler = torch.utils.data.distributed.DistributedSampler(
-                args['datasets'],
-                num_replicas = xm.xrt_world_size(),
-                rank = xm.get_ordinal(),
-                shuffle = True
-                )
-    dataloader = torch.utils.data.DataLoader(
-                dataset = args['datasets'],
-                sampler = sampler,
-                batch_size = config.batch_size,
-                drop_last = True,
-                collate_fn=collate_fn
-                )
-    val_sampler = torch.utils.data.distributed.DistributedSampler(
-                args['val_datasets'],
-                num_replicas = xm.xrt_world_size(),
-                rank = xm.get_ordinal(),
-                shuffle = True
-                )
-    val_dataloader = torch.utils.data.DataLoader(
-                dataset = args['val_datasets'],
-                sampler = val_sampler,
-                batch_size = config.val_batch_size,
-                drop_last = True,
-                collate_fn=collate_fn
-                )
-    dataloader = pl.ParallelLoader(
-                dataloader, [device]
-                ).per_device_loader(device)
-
-    val_dataloader =  pl.ParallelLoader(
-                val_dataloader, [device]
-                ).per_device_loader(device)
-    t = tqdm(dataloader)
     step = 0
     while True:
+        sampler = torch.utils.data.distributed.DistributedSampler(
+                    args['datasets'],
+                    num_replicas = xm.xrt_world_size(),
+                    rank = xm.get_ordinal(),
+                    shuffle = True
+                    )
+        dataloader_ = torch.utils.data.DataLoader(
+                    dataset = args['datasets'],
+                    sampler = sampler,
+                    batch_size = config.batch_size,
+                    drop_last = True,
+                    collate_fn=collate_fn
+                    )
+        val_sampler = torch.utils.data.distributed.DistributedSampler(
+                    args['val_datasets'],
+                    num_replicas = xm.xrt_world_size(),
+                    rank = xm.get_ordinal(),
+                    shuffle = True
+                    )
+        val_dataloader_ = torch.utils.data.DataLoader(
+                    dataset = args['val_datasets'],
+                    sampler = val_sampler,
+                    batch_size = config.val_batch_size,
+                    drop_last = True,
+                    collate_fn=collate_fn
+                    )
+        dataloader = pl.ParallelLoader(
+                    dataloader_, [device]
+                    ).per_device_loader(device)
+
+        val_dataloader =  pl.ParallelLoader(
+                    val_dataloader_, [device]
+                    ).per_device_loader(device)
+        t = tqdm(dataloader)
         for idx, data in enumerate(t):
             data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
             data['labels'] = data['labels'].float()
