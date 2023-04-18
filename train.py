@@ -21,6 +21,7 @@ os.environ['XRT_TPU_CONFIG'] = "localservice;0;localhost:51011"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
+prompt = ["다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "," - 텍스트: "," - 감정 값: "]
 
 # model()
 criterion = nn.CrossEntropyLoss()
@@ -75,7 +76,15 @@ def metric(pred,real):
     return f1
 
 def train(index,args):
+    device = xm.xla_device()
+
     tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
+    gpt_tokenizer = AutoTokenizer.from_pretrained('skt/kogpt2-base-v2') # tokenizer for prompt
+
+    prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+    prompt_tokens_2 = gpt_tokenizer(prompt[1], return_tensors='pt').to(device)  # " - 텍스트: "
+    prompt_tokens_3 = gpt_tokenizer(prompt[2], return_tensors='pt').to(device)  # " - 감정 값: "
+
     config = args['config']
     wandb.init(
         project=config.project,
@@ -85,7 +94,6 @@ def train(index,args):
         config=config
 
     )
-    device = xm.xla_device()
     model.to(device)
     model.train()
     step = 0
@@ -128,12 +136,13 @@ def train(index,args):
             data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
             data['labels'] = data['labels'].float()
             data = {i:j.to(device=device) for i, j in data.items()}
+            data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
             step += 1
             outputs = train_step(
                     model=model,
                     optimizer=args['optimizer'],
                     inputs=data,
-                    labels=data['labels'],
+                    labels=data['labels']
                 )
             pred = torch.argmax(outputs.logits[:,-1],dim=-1)
             # f1 = metric(pred.cpu(),data['labels'].cpu()) 데이터가 적어서 스코어 의미가 적다.
@@ -156,10 +165,11 @@ if __name__=="__main__":
     parser.add_argument('--prefix_hidden_size', type=int, default=768, help='you can use csv filepath.')
     parser.add_argument('--num_hidden_layers', type=int, default=12, help='you can use csv filepath.')
     parser.add_argument('--num_attention_heads', type=int, default=12, help='std output & model save dir')
-    parser.add_argument('--prompt', type=str, default=True, help='GPT-P-tunning.')
+    parser.add_argument('--p_tunning', type=bool, default=True, help='GPT-P-tunning.')
     parser.add_argument('--dropout', type=int, default=0.3, help='dropout.')
     parser.add_argument('--is_wav', type=bool, default=True, help='Boolean. if is True...')
     parser.add_argument('--num_labels', type=int, default=7, help='label nums')
+    parser.add_argument('--is_prompt', type=bool, default=False, help='is prompt')
 
     parser.add_argument('-v','--val_dir', type=str, default="~/datadisk/KEMDy20_val_data.csv", help='Optional')
     parser.add_argument('-t','--test_data', type=str, default="~/datadisk/KEMDy20_test_data.csv", help='Optional')
