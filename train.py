@@ -35,17 +35,17 @@ def train_step(model, inputs, labels, optimizer:torch.optim.Optimizer):
     # loss = loss_func(pred, labels)
     loss = outputs.loss
     xm.mark_step()
-    
+
     loss.backward()
     xm.mark_step()
-    
+
     xm.optimizer_step(optimizer=optimizer)
     return outputs
 
 def eval_step(model, inputs):
     outputs = model(inputs)
     xm.mark_step()
-    
+
     # loss = loss_func(pred,labels)
     return outputs
 
@@ -54,7 +54,7 @@ def evaluate(model:nn.Module, dataloader: DataLoader, wandb:wandb=wandb):
     t = tqdm(dataloader)
     _pred = torch.tensor([])
     _real = torch.tensor([])
-    
+
     for data in t:
         outputs = eval_step(model,data)
         pred = torch.argmax(outputs.logits[:,-1],dim=-1)
@@ -64,13 +64,13 @@ def evaluate(model:nn.Module, dataloader: DataLoader, wandb:wandb=wandb):
     score = metric(_pred.detach().cpu(),_real.detach().cpu())
     model.train()
     return score
-        
+
 
 def metric(pred,real):
     f1 = {
         'macro_f1':f1_score(real, pred, average='macro'),
         'micro_f1':f1_score(real, pred, average='micro'),
-        'weighted_f1':f1_score(real, pred, average='weighted'), 
+        'weighted_f1':f1_score(real, pred, average='weighted'),
     }
     return f1
 
@@ -83,7 +83,7 @@ def train(index,args):
         name=config.modelname,
         group='tpu-server',
         config=config
-        
+
     )
     device = xm.xla_device()
     model.to(device)
@@ -91,13 +91,13 @@ def train(index,args):
     step = 0
     while True:
         sampler = torch.utils.data.distributed.DistributedSampler(
-                    args['datasets'],
+                    args['train_datasets'],
                     num_replicas = xm.xrt_world_size(),
                     rank = xm.get_ordinal(),
                     shuffle = True
                     )
         dataloader_ = torch.utils.data.DataLoader(
-                    dataset = args['datasets'],
+                    dataset = args['train_datasets'],
                     sampler = sampler,
                     batch_size = config.batch_size,
                     drop_last = True,
@@ -144,8 +144,8 @@ def train(index,args):
                 wandb.log({"val_"+i:j for i,j in score})
         if step==args['whole_step']:
             return None
-        
-        
+
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='hyper&input')
     parser.add_argument('-i','--input_dir', type=str, default='~/datadisk/KEMDy20_train_data.csv', help='you can use csv file. without file extention')
@@ -180,11 +180,11 @@ if __name__=="__main__":
     model = MetaLM(config)
     optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.000001)
 
-    datasets = CustomDataset(config.input_dir,config.is_wav)
+    train_datasets = CustomDataset(config.input_dir,config.is_wav)
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
 
     FLAGS = {}
-    FLAGS.update(model=model,optimizer=optimizer,datasets=datasets,val_datasets=val_datasets, config=config, whole_step=10000, eval_per_steps=10000)
-    
+    FLAGS.update(model=model,optimizer=optimizer,train_datasets=train_datasets,val_datasets=val_datasets, config=config, whole_step=10000, eval_per_steps=10000)
+
     xmp.spawn(train, args =(FLAGS, ), nprocs=8, start_method='fork')
     wandb.finish()
