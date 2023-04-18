@@ -37,10 +37,10 @@ class TextEncoder(nn.Module):
         self.text_encoder = AutoModel.from_pretrained("Klue/RoBERTa-large")
         self.connector = nn.Linear(config.hidden_size,768)
         self.prompt=config.prompt
-        
+
         for param in self.text_encoder.parameters():
             param.requires_grad = False
-            
+
         if self.prompt:
             self.prefix_encoder=PrefixEncoder(config)
             self.pre_seq_len = config.pre_seq_len
@@ -49,14 +49,14 @@ class TextEncoder(nn.Module):
             self.n_embd = config.hidden_size // config.num_attention_heads
             self.prefix_tokens=torch.arange(self.pre_seq_len).long()
 
-        
+
     def get_prompt(self, batch_size):
         prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         past_key_values = self.prefix_encoder(prefix_tokens)
         past_key_values = past_key_values.view(
             batch_size,
             self.pre_seq_len,
-            self.n_layer * 2, 
+            self.n_layer * 2,
             self.n_head,
             self.n_embd
         )
@@ -64,7 +64,7 @@ class TextEncoder(nn.Module):
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
         return past_key_values
 
-        
+
     def forward(self,inputs, order=None):
         if self.prompt:
             past_key_values = self.get_prompt(inputs.shape[0])
@@ -73,15 +73,16 @@ class TextEncoder(nn.Module):
         text_tokens = self.text_encoder(**inputs,past_key_values=past_key_values)
         text_tokens = self.connector(text_tokens.last_hidden_state)
         return text_tokens
-        
-        
+
+
 class WavEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.wav_encoder = whisper.load_model("base").encoder
+        self.layer = nn.Linear(1500, 750)
         self.connector = nn.Linear(512,768)
         self.prompt=config.prompt
-        
+
         for param in self.wav_encoder.parameters():
             param.requires_grad = False
         if self.prompt:
@@ -92,30 +93,30 @@ class WavEncoder(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             self.prefix_tokens=torch.arange(self.pre_seq_len).long()
-            
-        
+
+
     def get_prompt(self, batch_size):
         prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         past_key_values = self.prefix_encoder(prefix_tokens)
         past_key_values = past_key_values.view(
             batch_size,
             self.pre_seq_len,
-            self.n_layer * 2, 
+            self.n_layer * 2,
             self.n_head,
             self.n_embd
         )
         past_key_values = self.dropout(past_key_values)
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
         return past_key_values
-        
+
     def forward(self,inputs, order=None):
         if self.prompt:
             past_key_values = self.get_prompt(inputs.shape[0])
         else:
             past_key_values = None
         wav_tokens = self.wav_encoder(inputs) # TODO: ,past_key_values=past_key_values,
+        wav_tokens = self.layer(wav_tokens.permute([0, 2, 1])).permute([0, 2, 1])
         wav_tokens = self.connector(wav_tokens)
-        
+
         return wav_tokens
-       
-        
+
