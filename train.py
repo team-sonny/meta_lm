@@ -81,9 +81,9 @@ def train(index,args):
     tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
     gpt_tokenizer = AutoTokenizer.from_pretrained('skt/kogpt2-base-v2') # tokenizer for prompt
 
-    prompt_tokens_1 = gpt_tokenizer(prompt[0]).to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
-    prompt_tokens_2 = gpt_tokenizer(prompt[1]).to(device)  # " - 텍스트: "
-    prompt_tokens_3 = gpt_tokenizer(prompt[2]).to(device)  # " - 감정 값: "
+    prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+    prompt_tokens_2 = gpt_tokenizer(prompt[1], return_tensors='pt').to(device)  # " - 텍스트: "
+    prompt_tokens_3 = gpt_tokenizer(prompt[2], return_tensors='pt').to(device)  # " - 감정 값: "
 
     config = args['config']
     wandb.init(
