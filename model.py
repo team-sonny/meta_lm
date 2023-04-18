@@ -84,9 +84,9 @@ class MetaLM(nn.Module):
         wav_tokens = self.wav_encoder(wav_tokens)
 
         if self.is_prompt:
-            p_token_1 = self.GPI.transformer.wte(inputs['p_tokens'][0]['input_ids'].unsqueeze(0).expand(batch_size, -1))
-            p_token_2 = self.GPI.transformer.wte(inputs['p_tokens'][1]['input_ids'].unsqueeze(0).expand(batch_size, -1))
-            p_token_3 = self.GPI.transformer.wte(inputs['p_tokens'][2]['input_ids'].unsqueeze(0).expand(batch_size, -1))
+            p_token_1 = self.GPI.transformer.wte(inputs['p_tokens'][0]['input_ids'].expand(batch_size, -1))
+            p_token_2 = self.GPI.transformer.wte(inputs['p_tokens'][1]['input_ids'].expand(batch_size, -1))
+            p_token_3 = self.GPI.transformer.wte(inputs['p_tokens'][2]['input_ids'].expand(batch_size, -1))
 
             inputs = torch.concat([p_token_1, wav_tokens, p_token_2, text_tokens, p_token_3], dim=1)
 
