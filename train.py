@@ -163,8 +163,8 @@ if __name__=="__main__":
 
     parser.add_argument('-v','--val_dir', type=str, default="~/datadisk/KEMDy20_val_data.csv", help='Optional')
     parser.add_argument('-t','--test_data', type=str, default="~/datadisk/KEMDy20_test_data.csv", help='Optional')
-    parser.add_argument('-b','--batch_size', type=int, default=2, help='default16')
-    parser.add_argument('-s','--val_batch_size', type=int, default=2, help='default8')
+    parser.add_argument('-b','--batch_size', type=int, default=1, help='default16')
+    parser.add_argument('-s','--val_batch_size', type=int, default=1, help='default8')
     parser.add_argument('-n','--modelname', type=str, default='PowerfulMyModel', help='Enter model name')
     parser.add_argument('-p','--project', type=str, default='meta-p-tunning', help='Enter project name')
 
