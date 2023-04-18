@@ -170,6 +170,7 @@ if __name__=="__main__":
     parser.add_argument('--is_wav', type=bool, default=True, help='Boolean. if is True...')
     parser.add_argument('--num_labels', type=int, default=7, help='label nums')
     parser.add_argument('--is_prompt', type=bool, default=False, help='is prompt')
+    parser.add_argument('--is_text_encoder', type=bool, default=True, help='if True, roberta encoder is used.')
 
     parser.add_argument('-v','--val_dir', type=str, default="~/datadisk/KEMDy20_val_data.csv", help='Optional')
     parser.add_argument('-t','--test_data', type=str, default="~/datadisk/KEMDy20_test_data.csv", help='Optional')

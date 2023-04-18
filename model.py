@@ -18,7 +18,7 @@ class MetaLM(nn.Module):
         self.embed_dim = config.hidden_size
         self.CLSLayer = nn.Embedding(1, self.embed_dim)
         self.CLSToken = torch.LongTensor([0])
-        self.text_encoder = TextEncoder(config.text_encoder)
+        self.text_encoder = TextEncoder(config.text_encoder) if config.is_text_encoder else None
         self.wav_encoder = WavEncoder(config.wav_encoder)
         # GPI is Semi-Causal LM
         self.GPI = GPT2ForTokenClassification.from_pretrained('skt/kogpt2-base-v2',output_hidden_states=True,num_labels=config.num_labels)
@@ -80,7 +80,7 @@ class MetaLM(nn.Module):
 
         labels=inputs['labels']
         text_tokens, wav_tokens = inputs['text_tokens'], inputs['wav_tokens']
-        text_tokens = self.text_encoder(text_tokens)
+        text_tokens = self.text_encoder(text_tokens) if self.text_encoder is not None else self.GPI.transformer.wte(text_tokens.input_ids)
         wav_tokens = self.wav_encoder(wav_tokens)
 
         if self.is_prompt:
