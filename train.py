@@ -77,15 +77,15 @@ def metric(pred,real):
 
 def train(index,args):
     device = xm.xla_device()
+    config = args['config']
 
-    tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large')
     gpt_tokenizer = AutoTokenizer.from_pretrained('skt/kogpt2-base-v2') # tokenizer for prompt
+    tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large') if config.is_text_encoder else gpt_tokenizer
 
     prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
     prompt_tokens_2 = gpt_tokenizer(prompt[1], return_tensors='pt').to(device)  # " - 텍스트: "
     prompt_tokens_3 = gpt_tokenizer(prompt[2], return_tensors='pt').to(device)  # " - 감정 값: "
 
-    config = args['config']
     wandb.init(
         project=config.project,
         entity="smart-sprout",
@@ -171,6 +171,7 @@ if __name__=="__main__":
     parser.add_argument('--num_labels', type=int, default=7, help='label nums')
     parser.add_argument('--is_prompt', type=bool, default=False, help='is prompt')
     parser.add_argument('--is_text_encoder', type=bool, default=True, help='if True, roberta encoder is used.')
+    parser.add_argument('--lr', type=float, default=0.000001, help='learning rate.')
 
     parser.add_argument('-v','--val_dir', type=str, default="~/datadisk/KEMDy20_val_data.csv", help='Optional')
     parser.add_argument('-t','--test_data', type=str, default="~/datadisk/KEMDy20_test_data.csv", help='Optional')
@@ -189,7 +190,7 @@ if __name__=="__main__":
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
     model = MetaLM(config)
-    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=0.000001)
+    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
 
     train_datasets = CustomDataset(config.input_dir,config.is_wav)
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
