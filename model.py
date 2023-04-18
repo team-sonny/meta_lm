@@ -15,6 +15,9 @@ prompt = ["다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분
 class MetaLM(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.embed_dim = config.hidden_size
+        self.CLSLayer = nn.Embedding(1, self.embed_dim)
+        self.CLSToken = torch.LongTensor([0])
         self.text_encoder = TextEncoder(config.text_encoder)
         self.wav_encoder = WavEncoder(config.wav_encoder)
         # GPI is Semi-Causal LM
@@ -50,6 +53,11 @@ class MetaLM(nn.Module):
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
         return past_key_values
         
+    def get_cls_embedding(self, batch_size):
+        CLSToken = self.CLSToken.unsqueeze(0).expand(batch_size, -1).to(next(self.parameters()).device)
+        CLSEmebedding = self.CLSLayer(CLSToken)
+        return CLSEmebedding
+        
     def forward(self, inputs, order=False):
         """_summary_
 
@@ -67,12 +75,13 @@ class MetaLM(nn.Module):
         
         batch_size = inputs['text_tokens']['input_ids'].shape[0]
         past_key_values = self.get_prompt(batch_size)
+        CLSEmbedding = self.get_cls_embedding(batch_size)
         labels=inputs['labels']
         text_tokens, wav_tokens = inputs['text_tokens'], inputs['wav_tokens']
         text_tokens = self.text_encoder(text_tokens)
         wav_tokens = self.wav_encoder(wav_tokens)
         # fitting seq_len for GPT with prefix
-        inputs = torch.concat([text_tokens,wav_tokens],dim=1)[:,:1019,:]
+        inputs = torch.concat([text_tokens,wav_tokens,CLSEmbedding],dim=1)
         xm.mark_step()
         
         # inputs = inputs.view(batch_size,-1,self.n_head,self.n_embd).permute([0,2,1,3])
