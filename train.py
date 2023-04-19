@@ -101,7 +101,7 @@ def train(index,args):
         project=config.project,
         entity="smart-sprout",
         name=config.modelname,
-        group='tpu-server',
+        group=f'tpu-server{config.modelname}',
         config=config
 
     )
