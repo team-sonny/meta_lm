@@ -122,26 +122,10 @@ def train(index,args):
                     drop_last = True,
                     collate_fn=collate_fn
                     )
-        val_sampler = torch.utils.data.distributed.DistributedSampler(
-                    args['val_datasets'],
-                    num_replicas = xm.xrt_world_size(),
-                    rank = xm.get_ordinal(),
-                    shuffle = True
-                    )
-        val_dataloader_ = torch.utils.data.DataLoader(
-                    dataset = args['val_datasets'],
-                    sampler = val_sampler,
-                    batch_size = config.val_batch_size,
-                    drop_last = True,
-                    collate_fn=collate_fn
-                    )
         dataloader = pl.ParallelLoader(
                     dataloader_, [device]
                     ).per_device_loader(device)
 
-        val_dataloader =  pl.ParallelLoader(
-                    val_dataloader_, [device]
-                    ).per_device_loader(device)
         t = tqdm(dataloader)
         for idx, data in enumerate(t):
             step += 1
@@ -160,6 +144,22 @@ def train(index,args):
             if wandb:
                 wandb.log({"loss": outputs.loss})
             if step%config.eval_per_steps==0:
+                val_sampler = torch.utils.data.distributed.DistributedSampler(
+                            args['val_datasets'],
+                            num_replicas = xm.xrt_world_size(),
+                            rank = xm.get_ordinal(),
+                            shuffle = True
+                            )
+                val_dataloader_ = torch.utils.data.DataLoader(
+                            dataset = args['val_datasets'],
+                            sampler = val_sampler,
+                            batch_size = config.val_batch_size,
+                            drop_last = True,
+                            collate_fn=collate_fn
+                            )
+                val_dataloader =  pl.ParallelLoader(
+                            val_dataloader_, [device]
+                            ).per_device_loader(device)
                 score = evaluate(model=model, dataloader=val_dataloader, tokenizer=tokenizer, gpt_tokenizer=gpt_tokenizer, wandb=wandb)
                 wandb.log({"val_"+i:j for i,j in score.items()})
             if step==config.whole_steps:
