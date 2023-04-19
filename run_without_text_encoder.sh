@@ -1,2 +1,2 @@
 ##!/bin/bash
- python3 train.py -i ~/datadisk/KEMDy20_train_data.csv -v ~/datadisk/KEMDy20_val_data.csv --is_text_encoder False
+ python3 train.py -i ~/datadisk/KEMDy20_train_data.csv -v ~/datadisk/KEMDy20_val_data.csv --is_text_encoder False --lr 0.0000001
