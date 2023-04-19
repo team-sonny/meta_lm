@@ -106,7 +106,6 @@ def train(index,args):
 
     )
     model.to(device)
-    model.train()
     step = 0
     while True:
         sampler = torch.utils.data.distributed.DistributedSampler(
@@ -128,6 +127,7 @@ def train(index,args):
 
         t = tqdm(dataloader)
         for idx, data in enumerate(t):
+            model.train()
             step += 1
             data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
             data['labels'] = data['labels'].float()
