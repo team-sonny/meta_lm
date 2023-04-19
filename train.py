@@ -50,13 +50,24 @@ def eval_step(model, inputs):
     # loss = loss_func(pred,labels)
     return outputs
 
-def evaluate(model:nn.Module, dataloader: DataLoader, wandb:wandb=wandb):
+def evaluate(model:nn.Module, dataloader: DataLoader, tokenizer: AutoTokenizer, gpt_tokenizer: AutoTokenizer, wandb:wandb=None):
+    device = next(model.parameters()).device
+    
+    prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+    prompt_tokens_2 = gpt_tokenizer(prompt[1], return_tensors='pt').to(device)  # " - 텍스트: "
+    prompt_tokens_3 = gpt_tokenizer(prompt[2], return_tensors='pt').to(device)  # " - 감정 값: "
+    
     model.eval()
+    
     t = tqdm(dataloader)
-    _pred = torch.tensor([])
-    _real = torch.tensor([])
+    _pred = torch.tensor([]).to(device)
+    _real = torch.tensor([]).to(device)
 
     for data in t:
+        data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
+        data['labels'] = data['labels'].float()
+        data = {i:j.to(device=device) for i, j in data.items()}
+        data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
         outputs = eval_step(model,data)
         pred = torch.argmax(outputs.logits[:,-1],dim=-1)
         _pred = torch.concat([_pred,pred])
@@ -133,11 +144,11 @@ def train(index,args):
                     ).per_device_loader(device)
         t = tqdm(dataloader)
         for idx, data in enumerate(t):
+            step += 1
             data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
             data['labels'] = data['labels'].float()
             data = {i:j.to(device=device) for i, j in data.items()}
             data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
-            step += 1
             outputs = train_step(
                     model=model,
                     optimizer=args['optimizer'],
@@ -148,11 +159,11 @@ def train(index,args):
             # f1 = metric(pred.cpu(),data['labels'].cpu()) 데이터가 적어서 스코어 의미가 적다.
             if wandb:
                 wandb.log({"loss": outputs.loss})
-            if step%args['eval_per_steps']==0:
-                score = evaluate(model=model, dataloader=val_dataloader, wandb=wandb)
-                wandb.log({"val_"+i:j for i,j in score})
-        if step==args['whole_step']:
-            return None
+            if step%config.eval_per_steps==0:
+                score = evaluate(model=model, dataloader=val_dataloader, tokenizer=tokenizer, gpt_tokenizer=gpt_tokenizer, wandb=wandb)
+                wandb.log({"val_"+i:j for i,j in score.items()})
+            if step==config.whole_steps:
+                return None
 
 
 if __name__=="__main__":
@@ -172,6 +183,9 @@ if __name__=="__main__":
     parser.add_argument('--is_prompt', type=bool, default=False, help='is prompt')
     parser.add_argument('--is_text_encoder', type=bool, default=True, help='if True, roberta encoder is used.')
     parser.add_argument('--lr', type=float, default=0.000001, help='learning rate.')
+    parser.add_argument('--whole_steps', type=int, default=10000, help='whole training step.')
+    parser.add_argument('--eval_per_steps', type=int, default=50, help='evaluate is excuted per this args.')
+
 
     parser.add_argument('-v','--val_dir', type=str, default="~/datadisk/KEMDy20_val_data.csv", help='Optional')
     parser.add_argument('-t','--test_data', type=str, default="~/datadisk/KEMDy20_test_data.csv", help='Optional')
@@ -196,7 +210,7 @@ if __name__=="__main__":
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
 
     FLAGS = {}
-    FLAGS.update(model=model,optimizer=optimizer,train_datasets=train_datasets,val_datasets=val_datasets, config=config, whole_step=10000, eval_per_steps=10000)
+    FLAGS.update(model=model,optimizer=optimizer,train_datasets=train_datasets,val_datasets=val_datasets, config=config)
 
     xmp.spawn(train, args =(FLAGS, ), nprocs=8, start_method='fork')
     wandb.finish()
