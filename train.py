@@ -1,6 +1,6 @@
 from model import MetaLM
 from transformers import AutoTokenizer
-from utils.Customdataset import CustomDataset, collate_fn
+from utils.Customdataset import CustomDataset, make_collate_fn
 import wandb
 import argparse
 from torch.utils.data import DataLoader, Dataset
@@ -120,7 +120,7 @@ def train(index,args):
                     sampler = sampler,
                     batch_size = config.batch_size,
                     drop_last = True,
-                    collate_fn=collate_fn
+                    collate_fn=make_collate_fn(args['train_datasets'])
                     )
         dataloader = pl.ParallelLoader(
                     dataloader_, [device]
@@ -156,7 +156,7 @@ def train(index,args):
                             sampler = val_sampler,
                             batch_size = config.val_batch_size,
                             drop_last = True,
-                            collate_fn=collate_fn
+                            collate_fn=make_collate_fn(args['val_datasets'])
                             )
                 val_dataloader =  pl.ParallelLoader(
                             val_dataloader_, [device]
