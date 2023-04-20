@@ -107,7 +107,8 @@ def train(index,args):
     )
     model.to(device)
     step = 0
-    while True:
+    running = True
+    while running:
         sampler = torch.utils.data.distributed.DistributedSampler(
                     args['train_datasets'],
                     num_replicas = xm.xrt_world_size(),
@@ -163,7 +164,7 @@ def train(index,args):
                 score = evaluate(model=model, dataloader=val_dataloader, tokenizer=tokenizer, gpt_tokenizer=gpt_tokenizer, wandb=wandb)
                 wandb.log({"val_"+i:j for i,j in score.items()})
             if step==config.whole_steps:
-                return None
+                running = False
 
 
 if __name__=="__main__":
