@@ -105,7 +105,9 @@ def train(index,args):
         config=config
 
     )
-    model.to(device)
+    model = model_.to(device)
+    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
+    
     step = 0
     while True:
         sampler = torch.utils.data.distributed.DistributedSampler(
@@ -203,14 +205,13 @@ if __name__=="__main__":
     config.wav_encoder = Config.from_json("wav_encoder_config.json")
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
-    model = MetaLM(config)
-    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
+    model_ = MetaLM(config)
 
     train_datasets = CustomDataset(config.input_dir,config.is_wav)
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
 
     FLAGS = {}
-    FLAGS.update(model=model,optimizer=optimizer,train_datasets=train_datasets,val_datasets=val_datasets, config=config)
+    FLAGS.update(train_datasets=train_datasets,val_datasets=val_datasets, config=config)
 
     xmp.spawn(train, args =(FLAGS, ), nprocs=8, start_method='fork')
     wandb.finish()
