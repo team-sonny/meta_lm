@@ -138,7 +138,7 @@ def train(index,args):
             data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
             outputs = train_step(
                     model=model,
-                    optimizer=args['optimizer'],
+                    optimizer=optimizer,
                     inputs=data,
                     labels=data['labels']
                 )
