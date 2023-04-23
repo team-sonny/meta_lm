@@ -63,17 +63,18 @@ def evaluate(model:nn.Module, dataloader: DataLoader, tokenizer: AutoTokenizer, 
     _pred = torch.tensor([]).to(device)
     _real = torch.tensor([]).to(device)
 
-    for data in t:
-        data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
-        data['labels'] = data['labels'].float()
-        data = {i:j.to(device=device) for i, j in data.items()}
-        data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
-        outputs = eval_step(model,data)
-        pred = torch.argmax(outputs.logits[:,-1],dim=-1)
-        _pred = torch.concat([_pred,pred])
-        _real = torch.concat([_real,data['labels']])
-        wandb.log({"val_loss":outputs.loss.detach().cpu()})
-    score = metric(_pred.detach().cpu(),_real.detach().cpu())
+    with torch.no_grad():
+        for data in t:
+            data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
+            data['labels'] = data['labels'].float()
+            data = {i:j.to(device=device) for i, j in data.items()}
+            data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
+            outputs = eval_step(model,data)
+            pred = torch.argmax(outputs.logits[:,-1],dim=-1)
+            _pred = torch.concat([_pred,pred])
+            _real = torch.concat([_real,data['labels']])
+            wandb.log({"val_loss":outputs.loss.detach().cpu()})
+        score = metric(_pred.detach().cpu(),_real.detach().cpu())
     model.train()
     return score
 
