@@ -63,17 +63,18 @@ def evaluate(model:nn.Module, dataloader: DataLoader, tokenizer: AutoTokenizer, 
     _pred = torch.tensor([]).to(device)
     _real = torch.tensor([]).to(device)
 
-    for data in t:
-        data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
-        data['labels'] = data['labels'].float()
-        data = {i:j.to(device=device) for i, j in data.items()}
-        data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
-        outputs = eval_step(model,data)
-        pred = torch.argmax(outputs.logits[:,-1],dim=-1)
-        _pred = torch.concat([_pred,pred])
-        _real = torch.concat([_real,data['labels']])
-        wandb.log({"val_loss":outputs.loss.detach().cpu()})
-    score = metric(_pred.detach().cpu(),_real.detach().cpu())
+    with torch.no_grad():
+        for data in t:
+            data["text_tokens"] = tokenizer(data["text_tokens"],return_tensors="pt",padding=True)
+            data['labels'] = data['labels'].float()
+            data = {i:j.to(device=device) for i, j in data.items()}
+            data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
+            outputs = eval_step(model,data)
+            pred = torch.argmax(outputs.logits[:,-1],dim=-1)
+            _pred = torch.concat([_pred,pred])
+            _real = torch.concat([_real,data['labels']])
+            wandb.log({"val_loss":outputs.loss.detach().cpu()})
+        score = metric(_pred.detach().cpu(),_real.detach().cpu())
     model.train()
     return score
 
@@ -105,7 +106,9 @@ def train(index,args):
         config=config
 
     )
-    model.to(device)
+    model = model_.to(device)
+    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
+    
     step = 0
     while True:
         sampler = torch.utils.data.distributed.DistributedSampler(
@@ -135,7 +138,7 @@ def train(index,args):
             data['p_tokens'] = [prompt_tokens_1, prompt_tokens_2, prompt_tokens_3]
             outputs = train_step(
                     model=model,
-                    optimizer=args['optimizer'],
+                    optimizer=optimizer,
                     inputs=data,
                     labels=data['labels']
                 )
@@ -203,14 +206,13 @@ if __name__=="__main__":
     config.wav_encoder = Config.from_json("wav_encoder_config.json")
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
-    model = MetaLM(config)
-    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
+    model_ = MetaLM(config)
 
     train_datasets = CustomDataset(config.input_dir,config.is_wav)
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
 
     FLAGS = {}
-    FLAGS.update(model=model,optimizer=optimizer,train_datasets=train_datasets,val_datasets=val_datasets, config=config)
+    FLAGS.update(train_datasets=train_datasets,val_datasets=val_datasets, config=config)
 
     xmp.spawn(train, args =(FLAGS, ), nprocs=8, start_method='fork')
     wandb.finish()
