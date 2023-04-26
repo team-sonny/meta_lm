@@ -15,6 +15,7 @@ prompt = ["다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분
 class MetaLM(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.config = config
         self.embed_dim = config.hidden_size
         self.CLSLayer = nn.Embedding(1, self.embed_dim)
         self.CLSToken = torch.LongTensor([0])
@@ -88,11 +89,20 @@ class MetaLM(nn.Module):
             p_token_2 = self.GPI.transformer.wte(inputs['p_tokens'][1]['input_ids'].expand(batch_size, -1))
             p_token_3 = self.GPI.transformer.wte(inputs['p_tokens'][2]['input_ids'].expand(batch_size, -1))
 
-            inputs = torch.concat([p_token_1, wav_tokens, p_token_2, text_tokens, p_token_3], dim=1)
-
+            if self.config.is_text:
+                inputs = torch.concat([p_token_1, wav_tokens, p_token_2, text_tokens, p_token_3], dim=1)
+            else:
+                inputs = torch.concat([p_token_1, wav_tokens, p_token_3], dim=1)
+                
         else:
             # fitting seq_len for GPT with prefix
-            inputs = torch.concat([text_tokens, wav_tokens, CLSEmbedding],dim=1)
+            if self.config.is_text:
+                inputs = torch.concat([text_tokens, wav_tokens, CLSEmbedding],dim=1)
+            else:
+                inputs = torch.concat([wav_tokens, CLSEmbedding],dim=1)
+                
+            
+            
 
         xm.mark_step()
 
