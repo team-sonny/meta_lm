@@ -182,6 +182,7 @@ if __name__=="__main__":
     parser.add_argument('--p_tunning', type=bool, default=True, help='GPT-P-tunning.')
     parser.add_argument('--dropout', type=int, default=0.3, help='dropout.')
     parser.add_argument('--is_wav', type=bool, default=True, help='Boolean. if is True...')
+    parser.add_argument('--is_text', type=bool, default=True, help='Boolean. if is True...')
     parser.add_argument('--num_labels', type=int, default=7, help='label nums')
     parser.add_argument('--is_prompt', type=bool, default=False, help='is prompt')
     parser.add_argument('--is_text_encoder', type=bool, default=True, help='if True, roberta encoder is used.')
