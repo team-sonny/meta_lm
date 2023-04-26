@@ -89,15 +89,19 @@ class MetaLM(nn.Module):
             p_token_2 = self.GPI.transformer.wte(inputs['p_tokens'][1]['input_ids'].expand(batch_size, -1))
             p_token_3 = self.GPI.transformer.wte(inputs['p_tokens'][2]['input_ids'].expand(batch_size, -1))
 
-            if self.config.is_text:
+            if self.config.is_text and self.config.is_wav:
                 inputs = torch.concat([p_token_1, wav_tokens, p_token_2, text_tokens, p_token_3], dim=1)
+            elif self.config.is_text:
+                inputs = torch.concat([p_token_1, p_token_2, text_tokens, p_token_3], dim=1)
             else:
                 inputs = torch.concat([p_token_1, wav_tokens, p_token_3], dim=1)
                 
         else:
             # fitting seq_len for GPT with prefix
-            if self.config.is_text:
+            if self.config.is_text and self.config.is_wav:
                 inputs = torch.concat([text_tokens, wav_tokens, CLSEmbedding],dim=1)
+            elif self.config.is_text:
+                inputs = torch.concat([text_tokens, CLSEmbedding],dim=1)
             else:
                 inputs = torch.concat([wav_tokens, CLSEmbedding],dim=1)
                 
