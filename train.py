@@ -145,7 +145,7 @@ def train(index,args):
             pred = torch.argmax(outputs.logits[:,-1],dim=-1)
             # f1 = metric(pred.cpu(),data['labels'].cpu()) 데이터가 적어서 스코어 의미가 적다.
             if wandb:
-                wandb.log({"loss": outputs.loss})
+                wandb.log({"loss": outputs.loss},step=step)
             if step%config.eval_per_steps==0:
                 val_sampler = torch.utils.data.distributed.DistributedSampler(
                             args['val_datasets'],
