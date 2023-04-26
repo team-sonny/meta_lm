@@ -53,7 +53,10 @@ def eval_step(model, inputs):
 def evaluate(model:nn.Module, dataloader: DataLoader, tokenizer: AutoTokenizer, gpt_tokenizer: AutoTokenizer, wandb:wandb=None):
     device = next(model.parameters()).device
     
-    prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+    if config.is_wav:
+        prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+    else:
+        prompt_tokens_1 = gpt_tokenizer(prompt[0][:-7], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
     prompt_tokens_2 = gpt_tokenizer(prompt[1], return_tensors='pt').to(device)  # " - 텍스트: "
     prompt_tokens_3 = gpt_tokenizer(prompt[2], return_tensors='pt').to(device)  # " - 감정 값: "
     
@@ -94,7 +97,11 @@ def train(index,args):
     gpt_tokenizer = AutoTokenizer.from_pretrained('skt/kogpt2-base-v2') # tokenizer for prompt
     tokenizer = AutoTokenizer.from_pretrained('klue/roberta-large') if config.is_text_encoder else gpt_tokenizer
 
-    prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+    if config.is_wav:
+        prompt_tokens_1 = gpt_tokenizer(prompt[0], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+    else:
+        prompt_tokens_1 = gpt_tokenizer(prompt[0][:-7], return_tensors='pt').to(device)  # "다음 내용의 감정을 맞추시오. 예제: [기쁨, 놀람, 분노, 중립, 혐오, 공포, 슬픔]\n - 소리: "
+        
     prompt_tokens_2 = gpt_tokenizer(prompt[1], return_tensors='pt').to(device)  # " - 텍스트: "
     prompt_tokens_3 = gpt_tokenizer(prompt[2], return_tensors='pt').to(device)  # " - 감정 값: "
 
