@@ -107,7 +107,7 @@ def train(index,args):
 
     )
     model = model_.to(device)
-    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
+    optimizer = torch.optim.AdamW(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
     
     step = 0
     while True:
