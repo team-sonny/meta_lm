@@ -17,8 +17,9 @@ class MetaLM(nn.Module):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
-        self.CLSLayer = nn.Embedding(1, self.embed_dim)
+        self.CLSLayer = nn.Embedding(2, self.embed_dim)
         self.CLSToken = torch.LongTensor([0])
+        self.SEPToken = torch.LongTensor([1])
         self.text_encoder = TextEncoder(config.text_encoder) if config.is_text_encoder else None
         self.wav_encoder = WavEncoder(config.wav_encoder)
         # GPI is Semi-Causal LM
@@ -59,6 +60,11 @@ class MetaLM(nn.Module):
         CLSToken = self.CLSToken.unsqueeze(0).expand(batch_size, -1).to(next(self.parameters()).device)
         CLSEmebedding = self.CLSLayer(CLSToken)
         return CLSEmebedding
+    
+    def get_sep_embedding(self, batch_size):
+        SEPToken = self.SEPToken.unsqueeze(0).expand(batch_size, -1).to(next(self.parameters()).device)
+        SEPEmebedding = self.CLSLayer(SEPToken) if self.config.sep_trainable else self.GPI.transformer.wte(SEPToken)
+        return SEPEmebedding
 
     def forward(self, inputs, order=False):
         """_summary_
@@ -78,6 +84,7 @@ class MetaLM(nn.Module):
         batch_size = inputs['text_tokens']['input_ids'].shape[0]
         past_key_values = self.get_prompt(batch_size)
         CLSEmbedding = self.get_cls_embedding(batch_size)
+        SEPEmbedding = self.get_sep_embedding(batch_size)
 
         labels=inputs['labels']
         text_tokens, wav_tokens = inputs['text_tokens'], inputs['wav_tokens']
@@ -99,7 +106,7 @@ class MetaLM(nn.Module):
         else:
             # fitting seq_len for GPT with prefix
             if self.config.is_text and self.config.is_wav:
-                inputs = torch.concat([text_tokens, wav_tokens, CLSEmbedding],dim=1)
+                inputs = torch.concat([text_tokens, SEPEmbedding, wav_tokens, CLSEmbedding],dim=1)
             elif self.config.is_text:
                 inputs = torch.concat([text_tokens, CLSEmbedding],dim=1)
             else:
