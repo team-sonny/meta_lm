@@ -17,7 +17,7 @@ class MetaLM(nn.Module):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
-        self.CLSLayer = nn.Embedding(2, self.embed_dim)
+        self.SpecialLayer = nn.Embedding(2, self.embed_dim)
         self.CLSToken = torch.LongTensor([0])
         self.SEPToken = torch.LongTensor([1])
         self.text_encoder = TextEncoder(config.text_encoder) if config.is_text_encoder else None
@@ -58,12 +58,12 @@ class MetaLM(nn.Module):
 
     def get_cls_embedding(self, batch_size):
         CLSToken = self.CLSToken.unsqueeze(0).expand(batch_size, -1).to(next(self.parameters()).device)
-        CLSEmebedding = self.CLSLayer(CLSToken)
+        CLSEmebedding = self.SpecialLayer(CLSToken)
         return CLSEmebedding
     
     def get_sep_embedding(self, batch_size):
         SEPToken = self.SEPToken.unsqueeze(0).expand(batch_size, -1).to(next(self.parameters()).device)
-        SEPEmebedding = self.CLSLayer(SEPToken) if self.config.sep_trainable else self.GPI.transformer.wte(SEPToken)
+        SEPEmebedding = self.SpecialLayer(SEPToken) if self.config.sep_trainable else self.GPI.transformer.wte(SEPToken)
         return SEPEmebedding
 
     def forward(self, inputs, order=False):
