@@ -193,6 +193,7 @@ if __name__=="__main__":
     parser.add_argument('--num_labels', type=int, default=7, help='label nums')
     parser.add_argument('--is_prompt', type=bool, default=False, help='is prompt')
     parser.add_argument('--is_text_encoder', type=bool, default=True, help='if True, roberta encoder is used.')
+    parser.add_argument('--sep_trainable', type=bool, default=False, help='Whether training seperate token')
     parser.add_argument('--lr', type=float, default=0.000001, help='learning rate.')
     parser.add_argument('--whole_steps', type=int, default=10000, help='whole training step.')
     parser.add_argument('--eval_per_steps', type=int, default=50, help='evaluate is excuted per this args.')
