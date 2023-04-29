@@ -20,8 +20,8 @@ class MetaLM(nn.Module):
         self.SpecialLayer = nn.Embedding(2, self.embed_dim)
         self.CLSToken = torch.LongTensor([0])
         self.SEPToken = torch.LongTensor([1])
-        self.text_encoder = TextEncoder(config.text_encoder) if config.is_text_encoder else None
-        self.wav_encoder = WavEncoder(config.wav_encoder)
+        self.text_encoder = TextEncoder(config.text_encoder_config) if config.is_text_encoder else None
+        self.wav_encoder = WavEncoder(config.wav_encoder_config)
         # GPI is Semi-Causal LM
         self.GPI = GPT2ForTokenClassification.from_pretrained('skt/kogpt2-base-v2',output_hidden_states=True,num_labels=config.num_labels)
         self.p_tunning = config.p_tunning
@@ -128,8 +128,8 @@ class MetaLM(nn.Module):
             "classifier": self.GPI.classifier.state_dict(),
         }
         model_for_save.update(**self.config.__dict__)
-        model_for_save['text_encoder'] = model_for_save['text_encoder'].__dict__
-        model_for_save['wav_encoder'] = model_for_save['wav_encoder'].__dict__
+        model_for_save['text_encoder_config'] = model_for_save['text_encoder_config'].__dict__
+        model_for_save['wav_encoder_config'] = model_for_save['wav_encoder_config'].__dict__
         if optimizer: model_for_save.update(optimizer=optimizer.state_dict())
         if self.config.is_text and self.config.is_text_encoder: model_for_save.update(text_connector=self.text_encoder.connector.state_dict())
         if self.config.is_wav: 

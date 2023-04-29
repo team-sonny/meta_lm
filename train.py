@@ -173,11 +173,11 @@ def train(index,args):
                 score = evaluate(model=model, dataloader=val_dataloader, tokenizer=tokenizer, gpt_tokenizer=gpt_tokenizer, wandb=wandb)
                 wandb.log({"val_"+i:j for i,j in score.items()})
                 
-                with open("score") as f:
+                with open("score.txt") as f:
                     best_score = float(f.readline().strip())
                 if best_score < score[config.focus_metric]:
                     model.save(config.save_path, optimizer=optimizer)
-                    with open("score","w") as f:
+                    with open("score.txt","w") as f:
                         f.write(str(score[config.focus_metric]))
                 
             if step==config.whole_steps:
@@ -223,12 +223,12 @@ if __name__=="__main__":
     # config = wandb.config
 
     # config.update(args)
-    config.wav_encoder = Config.from_json("wav_encoder_config.json")
-    config.text_encoder = Config.from_json("text_encoder_config.json")
+    config.wav_encoder_config = Config.from_json("wav_encoder_config.json")
+    config.text_encoder_config = Config.from_json("text_encoder_config.json")
 
     model_ = MetaLM(config)
     if config.load_path: model_.load(config.load_path)
-    with open("score","w") as f:
+    with open("score.txt","w") as f:
         f.write("0.5")
 
     train_datasets = CustomDataset(config.input_dir,config.is_wav)
