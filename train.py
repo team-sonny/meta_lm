@@ -115,6 +115,9 @@ def train(index,args):
     )
     model = model_.to(device)
     optimizer = torch.optim.AdamW(filter(lambda x: x.requires_grad, model.parameters()),lr=config.lr)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.00001, 
+                                    steps_per_epoch=len(args['train_datasets']), epochs=(config.whole_steps//len(args['train_datasets'])+1),anneal_strategy='cos')
+    
     
     step = 0
     while True:
@@ -149,10 +152,12 @@ def train(index,args):
                     inputs=data,
                     labels=data['labels']
                 )
-            pred = torch.argmax(outputs.logits[:,-1],dim=-1)
+            
+            scheduler.step()
+            # pred = torch.argmax(outputs.logits[:,-1],dim=-1)
             # f1 = metric(pred.cpu(),data['labels'].cpu()) 데이터가 적어서 스코어 의미가 적다.
             if wandb:
-                wandb.log({"loss": outputs.loss})
+                wandb.log({"loss": outputs.loss, "lr": optimizer.param_groups[0]['lr']})
             if step%config.eval_per_steps==0:
                 val_sampler = torch.utils.data.distributed.DistributedSampler(
                             args['val_datasets'],
