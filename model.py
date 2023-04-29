@@ -127,7 +127,9 @@ class MetaLM(nn.Module):
             "prefix_encoder": self.prefix_encoder.state_dict(),
             "classifier": self.GPI.classifier.state_dict(),
         }
-        model_for_save.update(**self.config)
+        model_for_save.update(**self.config.__dict__)
+        model_for_save['text_encoder'] = model_for_save['text_encoder'].__dict__
+        model_for_save['wav_encoder'] = model_for_save['wav_encoder'].__dict__
         if optimizer: model_for_save.update(optimizer=optimizer.state_dict())
         if self.config.is_text and self.config.is_text_encoder: model_for_save.update(text_connector=self.text_encoder.connector.state_dict())
         if self.config.is_wav: 
