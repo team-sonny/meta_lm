@@ -172,6 +172,14 @@ def train(index,args):
                             ).per_device_loader(device)
                 score = evaluate(model=model, dataloader=val_dataloader, tokenizer=tokenizer, gpt_tokenizer=gpt_tokenizer, wandb=wandb)
                 wandb.log({"val_"+i:j for i,j in score.items()})
+                
+                with open("score") as f:
+                    best_score = float(f.readline().strip())
+                if best_score < score[config.focus_metric]:
+                    model.save(config.save_path, optimizer=optimizer)
+                    with open("score","w") as f:
+                        f.write(str(score[config.focus_metric]))
+                
             if step==config.whole_steps:
                 return None
 
@@ -205,6 +213,9 @@ if __name__=="__main__":
     parser.add_argument('-s','--val_batch_size', type=int, default=1, help='default8')
     parser.add_argument('-n','--modelname', type=str, default='PowerfulMyModel', help='Enter model name')
     parser.add_argument('-p','--project', type=str, default='meta-p-tunning', help='Enter project name')
+    parser.add_argument('--save_path', type=str, default='./default_model.pt', help='Enter model save path')
+    parser.add_argument('--focus_metric', type=str, default='weighted_f1', help='Enter eval metric to focus on')
+    parser.add_argument('--load_path', type=str, default='', help='Enter model load path')
 
     config = parser.parse_args()
 
@@ -216,6 +227,9 @@ if __name__=="__main__":
     config.text_encoder = Config.from_json("text_encoder_config.json")
 
     model_ = MetaLM(config)
+    if config.load_path: model_.load(config.load_path)
+    with open("score","w") as f:
+        f.write("0.5")
 
     train_datasets = CustomDataset(config.input_dir,config.is_wav)
     val_datasets = CustomDataset(config.val_dir,config.is_wav)
