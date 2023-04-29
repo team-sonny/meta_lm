@@ -20,12 +20,11 @@ class MetaLM(nn.Module):
         self.SpecialLayer = nn.Embedding(2, self.embed_dim)
         self.CLSToken = torch.LongTensor([0])
         self.SEPToken = torch.LongTensor([1])
-        self.text_encoder = TextEncoder(config.text_encoder) if config.is_text_encoder else None
-        self.wav_encoder = WavEncoder(config.wav_encoder)
+        self.text_encoder = TextEncoder(config.text_encoder_config) if config.is_text_encoder else None
+        self.wav_encoder = WavEncoder(config.wav_encoder_config)
         # GPI is Semi-Causal LM
         self.GPI = GPT2ForTokenClassification.from_pretrained('skt/kogpt2-base-v2',output_hidden_states=True,num_labels=config.num_labels)
         self.p_tunning = config.p_tunning
-        self.classifier = nn.Linear(768,7)
         self.dropout = nn.Dropout2d(config.dropout)
         for param in self.GPI.parameters():
             param.requires_grad = False
@@ -122,3 +121,29 @@ class MetaLM(nn.Module):
         # pred = self.classifier(outputs.hidden_states[:,-1])
         return outputs
 
+    def save(self, PATH: str, optimizer: torch.optim.Optimizer = None) -> None:
+        model_for_save = {
+            "SpecialLayer": self.SpecialLayer.state_dict(),
+            "prefix_encoder": self.prefix_encoder.state_dict(),
+            "classifier": self.GPI.classifier.state_dict(),
+        }
+        model_for_save.update(**self.config.__dict__)
+        model_for_save['text_encoder_config'] = model_for_save['text_encoder_config'].__dict__
+        model_for_save['wav_encoder_config'] = model_for_save['wav_encoder_config'].__dict__
+        if optimizer: model_for_save.update(optimizer=optimizer.state_dict())
+        if self.config.is_text and self.config.is_text_encoder: model_for_save.update(text_connector=self.text_encoder.connector.state_dict())
+        if self.config.is_wav: 
+            model_for_save.update(wav_connector=self.wav_encoder.connector.state_dict())
+            model_for_save.update(wav_layer=self.wav_encoder.layer.state_dict())
+        torch.save(model_for_save,f=PATH)
+
+    def load(self, PATH: str) -> torch.nn.Module:
+        model = torch.load(PATH)
+        self.SpecialLayer.load_state_dict(model['SpecialLayer'])
+        self.prefix_encoder.load_state_dict(model['prefix_encoder'])
+        self.GPI.classifier.load_state_dict(model['classifier'])
+        if self.config.is_text and self.config.is_text_encoder: self.text_encoder.connector.load_state_dict(model['text_connector'])
+        if self.config.is_wav: 
+            self.wav_encoder.connector.load_state_dict(model['wav_connector'])
+            self.wav_encoder.layer.load_state_dict(model['wav_layer'])
+        return self
