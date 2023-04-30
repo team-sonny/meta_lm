@@ -135,7 +135,7 @@ class MetaLM(nn.Module):
         if self.config.is_wav: 
             model_for_save.update(wav_connector=self.wav_encoder.connector.state_dict())
             model_for_save.update(wav_layer=self.wav_encoder.layer.state_dict())
-        torch.save(model_for_save,f=PATH)
+        xm.save(model_for_save,PATH)
 
     def load(self, PATH: str) -> torch.nn.Module:
         model = torch.load(PATH)
