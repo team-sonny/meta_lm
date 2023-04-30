@@ -7,4 +7,5 @@ sudo mkdir -p ~/datadisk
 sudo mount -o discard,defaults /dev/sdb ~/datadisk/
 ln -s ~/datadisk/KEMDy20 .
 ln -s ~/datadisk/wav_data .
+source ~/.bashrc
 wandb login
