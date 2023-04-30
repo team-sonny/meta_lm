@@ -181,7 +181,7 @@ def train(index,args):
                 with open("score.txt") as f:
                     best_score = float(f.readline().strip())
                 if best_score < score[config.focus_metric]:
-                    model.save(config.save_path, optimizer=optimizer)
+                    model.save(config.save_path+config.modelname, optimizer=optimizer)
                     with open("score.txt","w") as f:
                         f.write(str(score[config.focus_metric]))
                 
