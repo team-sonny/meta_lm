@@ -10,4 +10,6 @@ KEMDy20 폴더를 ~/datadisk 폴더 안에 넣어줍니다.
 ```
 
 ## 모델 학습
+```python3
 python3 train.py
+```
